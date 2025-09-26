@@ -4,16 +4,19 @@ import numpy as np
 from math import log10
 from defines import *
 from implement_volterra import func_find_coef_volterra
+import matplotlib.pyplot as plt
 
 def main():
-
 
     data = loadmat(file_in_out_SBRT2_direto)
     list_in_complex, lista_out_complex = [data_in for data_in in data['in_extraction']], [data_out for data_out in data['out_extraction']]
     list_in_complex_adjust = func_calculate_list_in_volterra_for_complex_number(list_in_complex, P, M)
     COEFS = func_find_coef_volterra(list_in_complex_adjust, lista_out_complex)
-    list_out_complex_estimate = func_calculate_y_estimate(list_in_complex_adjust, COEFS)
-    NMSE = func_calculate_NMSE(lista_out_complex, list_out_complex_estimate)
+    list_in_complex_validation, lista_out_complex_validation = [data_in for data_in in data['in_validation']], [data_out for data_out in data['out_validation']]
+    list_in_complex_adjust_validation = func_calculate_list_in_volterra_for_complex_number(list_in_complex_validation, P, M)
+    y_estimate = func_calculate_y_estimate(list_in_complex_adjust_validation, COEFS)
+    NMSE = func_calculate_NMSE_vetorizado(y_estimate, lista_out_complex_validation)
+    func_plot_in_vs_out_amp(y_estimate, lista_out_complex_validation, list_in_complex)
 
 
 def func_calculate_list_in_volterra_for_complex_number(list_in, P, M):
@@ -58,6 +61,23 @@ def func_calculate_y_estimate(list_in_complex_adjust, COEFS):
     return list_out_estimate
 
 
+def func_calculate_NMSE_vetorizado(list_out_real, list_out_estimate, eps=1e-12):
+    """
+    Função que calcula o NMSE entre os valores reais e os estimados. (VERSÃO VETORIZADA)
+    Args:
+        list_out_real → Lista de saídas reais. (List)
+        list_out_estimate → Lista de saídas estimadas. (List)
+    Returns:
+        nmse → Valor do NMSE. (Float)
+   """
+    list_out_real = np.asarray(list_out_real)
+    list_out_estimate = np.asarray(list_out_estimate)
+    num = np.sum(np.abs(list_out_real - list_out_estimate) ** 2)
+    den = np.sum(np.abs(list_out_real) ** 2)
+    nmse = 10 * np.log10(num / (den + eps))
+    return float(nmse)
+
+
 def func_calculate_NMSE(list_out_real, list_out_estimate):
     """
     Função que calcula o NMSE entre os valores reais e os estimados.
@@ -74,6 +94,33 @@ def func_calculate_NMSE(list_out_real, list_out_estimate):
         sum_denominator = abs(list_out_real[i])**2
     nmse = 10*log10(sum_error_numerator/sum_denominator)
     return nmse
+
+
+def func_plot_in_vs_out_amp(y_estimate, lista_out_complex_validation, list_in_complex, plot_type='AM-AM'):
+    """
+    Função que plota o gráfico de saída real versus saída estimada.
+    Args:
+        list_out_real → Lista de saídas reais. (List)
+        list_out_estimate → Lista de saídas estimadas. (List)
+    """
+    plt.figure(figsize=(10, 6))
+    list_real_amp = [abs(out_val[0]) for out_val in lista_out_complex_validation]
+    list_estimate_amp = [abs(out_val[0]) for out_val in y_estimate]
+
+    # gráfico de dispersão (pontos)
+    plt.scatter(list_real_amp, list_estimate_amp, c='g', marker='o', label='Estimado vs Real')
+
+    # linha de referência y=x (para comparar estimado ≈ real)
+    min_val = min(min(list_real_amp), min(list_estimate_amp))
+    max_val = max(max(list_real_amp), max(list_estimate_amp))
+    plt.plot([min_val, max_val], [min_val, max_val], 'r--', label='y = x')
+
+    plt.xlabel('Entrada')
+    plt.ylabel('Saída')
+    plt.title('MODELO VOLTERRA COM COMPLEXOS')
+    plt.legend()
+    plt.grid(True)
+    plt.show()
 
 
 if __name__ == "__main__":
